@@ -11,8 +11,10 @@ from .const import (
     CONF_DETAILED_LOGGING,
     CONF_ENCOURAGE_WEB_SEARCH,
     CONF_MODEL,
+    CONF_SILENCE_DURATION_MS,
     CONF_TRANSCRIBE_GEMINI,
     CONF_VOICE,
+    DEFAULT_SILENCE_DURATION_MS,
     DEFAULT_TRANSCRIBE_GEMINI,
     DEFAULT_ENCOURAGE_WEB_SEARCH,
     CONF_SYSTEM_INSTRUCTION,
@@ -20,6 +22,17 @@ from .const import (
     DEFAULT_VOICE,
     AVAILABLE_MODELS,
     AVAILABLE_VOICES_INFO,
+)
+
+
+SILENCE_DURATION_SELECTOR = selector.NumberSelector(
+    selector.NumberSelectorConfig(
+        min=100,
+        max=2000,
+        step=50,
+        unit_of_measurement="ms",
+        mode=selector.NumberSelectorMode.SLIDER,
+    )
 )
 
 
@@ -68,6 +81,10 @@ class GeminiLiveConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         CONF_ENCOURAGE_WEB_SEARCH,
                         default=DEFAULT_ENCOURAGE_WEB_SEARCH,
                     ): selector.BooleanSelector(),
+                    vol.Optional(
+                        CONF_SILENCE_DURATION_MS,
+                        default=DEFAULT_SILENCE_DURATION_MS,
+                    ): SILENCE_DURATION_SELECTOR,
                 }
             ),
             errors=errors,
@@ -98,6 +115,9 @@ class GeminiLiveConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         current_encourage_web_search = config.get(
             CONF_ENCOURAGE_WEB_SEARCH, DEFAULT_ENCOURAGE_WEB_SEARCH
         )
+        current_silence_duration_ms = config.get(
+            CONF_SILENCE_DURATION_MS, DEFAULT_SILENCE_DURATION_MS
+        )
 
         return self.async_show_form(
             step_id="reconfigure",
@@ -119,6 +139,10 @@ class GeminiLiveConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         CONF_ENCOURAGE_WEB_SEARCH,
                         default=current_encourage_web_search,
                     ): selector.BooleanSelector(),
+                    vol.Optional(
+                        CONF_SILENCE_DURATION_MS,
+                        default=current_silence_duration_ms,
+                    ): SILENCE_DURATION_SELECTOR,
                 }
             ),
             errors=errors,
@@ -155,6 +179,9 @@ class GeminiLiveOptionsFlowHandler(config_entries.OptionsFlow):
         current_encourage_web_search = config.get(
             CONF_ENCOURAGE_WEB_SEARCH, DEFAULT_ENCOURAGE_WEB_SEARCH
         )
+        current_silence_duration_ms = config.get(
+            CONF_SILENCE_DURATION_MS, DEFAULT_SILENCE_DURATION_MS
+        )
 
         schema_dict = {
             vol.Required(CONF_API_KEY, default=current_api_key): str,
@@ -173,6 +200,10 @@ class GeminiLiveOptionsFlowHandler(config_entries.OptionsFlow):
                 CONF_ENCOURAGE_WEB_SEARCH,
                 default=current_encourage_web_search,
             ): selector.BooleanSelector(),
+            vol.Optional(
+                CONF_SILENCE_DURATION_MS,
+                default=current_silence_duration_ms,
+            ): SILENCE_DURATION_SELECTOR,
         }
 
         return self.async_show_form(

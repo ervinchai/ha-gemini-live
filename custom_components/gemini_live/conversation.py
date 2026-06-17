@@ -19,8 +19,10 @@ from .const import (
     CONF_API_KEY,
     CONF_ENCOURAGE_WEB_SEARCH,
     CONF_MODEL,
+    CONF_SILENCE_DURATION_MS,
     CONF_SYSTEM_INSTRUCTION,
     CONF_VOICE,
+    DEFAULT_SILENCE_DURATION_MS,
     DEFAULT_SYSTEM_INSTRUCTION,
     DEFAULT_ENCOURAGE_WEB_SEARCH,
     DOMAIN,
@@ -192,6 +194,11 @@ class GeminiLiveConversationAgent(conversation.ConversationEntity):
                 transcribe_output=True,
                 session_resumption=True,
                 context_compression=True,
+                silence_duration_ms=int(
+                    config.get(
+                        CONF_SILENCE_DURATION_MS, DEFAULT_SILENCE_DURATION_MS
+                    )
+                ),
             )
         )
 
