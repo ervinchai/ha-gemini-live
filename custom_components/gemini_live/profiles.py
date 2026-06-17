@@ -25,6 +25,11 @@ from .const import (
     SUPPORTED_LANGUAGES,
 )
 
+# Seconds a blocking-tool model waits for a synchronous tool result before
+# giving up. 3.x has no NON_BLOCKING tools, so this caps how long one slow tool
+# can stall the Live receive loop.
+BLOCKING_TOOL_CALL_TIMEOUT = 10.0
+
 
 @dataclass(frozen=True)
 class ModelCapabilities:
@@ -189,6 +194,20 @@ class ModelProfile:
         types.LiveConnectConfig.model_validate(config)
 
     # -- response handling -------------------------------------------------
+
+    @property
+    def tool_call_timeout(self) -> float | None:
+        """Seconds to wait for a synchronous tool result before giving up.
+
+        Models without NON_BLOCKING tools stall the Live receive loop while a
+        tool runs, so a slow tool (e.g. an n8n MCP workflow reached through
+        Home Assistant) can hang the whole turn; bound the wait for them.
+        Models that support NON_BLOCKING tools do not block the loop and need
+        no bound.
+        """
+        if self.capabilities.supports_nonblocking_tools:
+            return None
+        return BLOCKING_TOOL_CALL_TIMEOUT
 
     def turn_complete_is_final(self, *, received_audio: bool) -> bool:
         """Whether a ``turn_complete`` event actually ends the turn.

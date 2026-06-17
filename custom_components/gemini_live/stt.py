@@ -46,6 +46,7 @@ from .const import (
     DEFAULT_ENCOURAGE_WEB_SEARCH,
     DEFAULT_SYSTEM_INSTRUCTION,
     DOMAIN,
+    GEMINI_CLIENT_KEY,
     GEMINI_LIVE_TTS_PLACEHOLDER,
     GEMINI_SESSION_MANAGER_KEY,
     GEMINI_TURN_STORE_KEY,
@@ -101,6 +102,26 @@ def _is_search_tool_name(name: str) -> bool:
 def _is_connection_closed_ok(exc: Exception) -> bool:
     """Return true for websockets' normal-close exception without importing it."""
     return exc.__class__.__name__ == "ConnectionClosedOK"
+
+
+async def async_get_client(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    api_key: str,
+) -> Any:
+    """Return the per-entry shared genai client, creating it once if needed.
+
+    Constructing a Client opens an http2 transport; reusing one across every
+    Live turn keeps that cost off the hot path.
+    """
+    entry_data = hass.data[DOMAIN][entry.entry_id]
+    client = entry_data.get(GEMINI_CLIENT_KEY)
+    if client is None:
+        client = await hass.async_add_executor_job(
+            lambda: genai.Client(api_key=api_key)
+        )
+        entry_data[GEMINI_CLIENT_KEY] = client
+    return client
 
 
 # ---------------------------------------------------------------------------
@@ -243,6 +264,42 @@ def _validate_tool_results(value: Any) -> Any:
     return value
 
 
+async def async_dispatch_tool_call(
+    llm_api: llm.APIInstance | None,
+    tool_name: str,
+    tool_args: dict[str, Any],
+    timeout: float | None,
+) -> Any:
+    """Run one HA Assist (or HA-registered MCP) tool and return a JSON result.
+
+    ``timeout`` bounds the wait for models that block the Live receive loop
+    while a tool runs (see ModelProfile.tool_call_timeout). External tools
+    reached through Home Assistant's MCP client — e.g. an n8n workflow — should
+    ack fast and defer slow work; this guard keeps one slow or hung tool from
+    stalling the whole turn. Failures and timeouts are returned to Gemini as an
+    error payload rather than raised.
+    """
+    if llm_api is None:
+        return {"error": "HA LLM API not available"}
+    tool_input = llm.ToolInput(tool_name=tool_name, tool_args=tool_args)
+    try:
+        call = llm_api.async_call_tool(tool_input)
+        result = (
+            await call
+            if timeout is None
+            else await asyncio.wait_for(call, timeout)
+        )
+    except (asyncio.TimeoutError, TimeoutError):
+        _LOGGER.warning(
+            "Tool %s did not return within %ss; continuing the turn", tool_name, timeout
+        )
+        result = {"error": f"Tool {tool_name} timed out after {timeout}s"}
+    except Exception as err:  # noqa: BLE001
+        _LOGGER.error("Tool %s failed: %s", tool_name, err)
+        result = {"error": str(err)}
+    return _validate_tool_results(result)
+
+
 # ---------------------------------------------------------------------------
 # PCM diagnostics helper
 # ---------------------------------------------------------------------------
@@ -345,7 +402,7 @@ class GeminiLiveSTT(SpeechToTextEntity):
         if active_chat_session is not None:
             session_manager.register_chat_session(self.hass, active_chat_session)
 
-        _LOGGER.warning(
+        _LOGGER.debug(
             "[turn=%s] SDK helper start api_key_present=%s model=%s voice=%s language=%s",
             turn_id,
             bool(api_key),
@@ -409,16 +466,10 @@ class GeminiLiveSTT(SpeechToTextEntity):
             [definition["name"] for definition in function_declarations],
         )
 
-        _LOGGER.warning(
-            "[turn=%s] creating genai client", turn_id
-        )
-        client = await self.hass.async_add_executor_job(
-            lambda: genai.Client(api_key=api_key)
-        )
-        _LOGGER.warning(
-            "[turn=%s] genai client created live_config_keys=%s tool_count=%d system_instruction_chars=%d",
+        client = await async_get_client(self.hass, self.entry, api_key)
+        _LOGGER.debug(
+            "[turn=%s] genai client ready tool_count=%d system_instruction_chars=%d",
             turn_id,
-            ["response_modalities", "speech_config", "system_instruction", "input_audio_transcription", "output_audio_transcription", "realtime_input_config"] + (["tools"] if function_declarations else []),
             len(function_declarations),
             len(system_instruction),
         )
@@ -448,7 +499,7 @@ class GeminiLiveSTT(SpeechToTextEntity):
             )
         )
 
-        _LOGGER.warning(
+        _LOGGER.debug(
             "[turn=%s] live config prepared model=%s response_modalities=%s voice=%s has_tools=%s input_transcription=%s output_transcription=%s realtime_turn_coverage=%s",
             turn_id,
             model,
@@ -460,7 +511,7 @@ class GeminiLiveSTT(SpeechToTextEntity):
             live_config["realtime_input_config"].get("turn_coverage"),
         )
 
-        _LOGGER.warning(
+        _LOGGER.debug(
             "[turn=%s] setup model=%s response_modalities=%s tools=%d",
             turn_id,
             model,
@@ -480,7 +531,7 @@ class GeminiLiveSTT(SpeechToTextEntity):
         response_audio_stream = AudioStream()
         response_text_stream = TextStream() if transcribe_gemini else None
 
-        _LOGGER.warning(
+        _LOGGER.debug(
             "[turn=%s] acquiring Gemini Live session conversation=%s",
             turn_id,
             conversation_id,
@@ -491,7 +542,7 @@ class GeminiLiveSTT(SpeechToTextEntity):
             profile,
             live_config,
         ) as session:
-            _LOGGER.warning(
+            _LOGGER.debug(
                 "[turn=%s] acquired Gemini Live session conversation=%s",
                 turn_id,
                 conversation_id,
@@ -502,16 +553,20 @@ class GeminiLiveSTT(SpeechToTextEntity):
                 try:
                     first_chunk = True
                     audio_buffer = bytearray()
+                    # Only retain dispatched PCM for the end-of-turn diagnostic
+                    # when debug logging is on; accumulating and analysing it
+                    # otherwise is pure per-turn overhead for a suppressed log.
+                    collect_diag = _LOGGER.isEnabledFor(logging.DEBUG)
                     pcm_for_diag: list[bytes] = []
                     chunk_count = 0
 
-                    _LOGGER.warning("[turn=%s] send_audio task spawned", turn_id)
+                    _LOGGER.debug("[turn=%s] send_audio task spawned", turn_id)
 
                     async for chunk in stream:
                         if not chunk:
                             continue
                         if gemini_replied.is_set():
-                            _LOGGER.warning(
+                            _LOGGER.debug(
                                 "[turn=%s] send_audio stopped because Gemini started replying",
                                 turn_id,
                             )
@@ -531,7 +586,8 @@ class GeminiLiveSTT(SpeechToTextEntity):
                             del audio_buffer[:OPTIMAL_STREAM_CHUNK_SIZE]
 
                             chunk_count += 1
-                            pcm_for_diag.append(dispatch_chunk)
+                            if collect_diag:
+                                pcm_for_diag.append(dispatch_chunk)
                             _LOGGER.debug(
                                 "[turn=%s] Shipping optimized media chunk %d (%d bytes)",
                                 turn_id,
@@ -554,7 +610,8 @@ class GeminiLiveSTT(SpeechToTextEntity):
                     if len(audio_buffer) > 0 and not gemini_replied.is_set():
                         chunk_count += 1
                         dispatch_chunk = bytes(audio_buffer)
-                        pcm_for_diag.append(dispatch_chunk)
+                        if collect_diag:
+                            pcm_for_diag.append(dispatch_chunk)
                         _LOGGER.debug(
                             "[turn=%s] flushing trailing audio chunk size=%d",
                             turn_id,
@@ -569,7 +626,7 @@ class GeminiLiveSTT(SpeechToTextEntity):
                         audio_sent = True
 
                     if pcm_for_diag:
-                        _LOGGER.warning(
+                        _LOGGER.debug(
                             "[turn=%s] Finished voice streaming. Total blocks dispatched=%d. Metrics=%s",
                             turn_id,
                             chunk_count,
@@ -580,7 +637,7 @@ class GeminiLiveSTT(SpeechToTextEntity):
                         _LOGGER.debug("[turn=%s] signalling audio stream end", turn_id)
                         await session.send_realtime_input(audio_stream_end=True)
                 except asyncio.CancelledError:
-                    _LOGGER.warning(
+                    _LOGGER.debug(
                         "[turn=%s] audio sender cancelled — Gemini started replying",
                         turn_id,
                     )
@@ -592,9 +649,9 @@ class GeminiLiveSTT(SpeechToTextEntity):
                 nonlocal audio_response_bytes, audio_response_chunk_count
                 nonlocal last_response_activity
                 try:
-                    _LOGGER.warning("[turn=%s] receive_responses started", turn_id)
+                    _LOGGER.debug("[turn=%s] receive_responses started", turn_id)
                     async for response in session.receive():
-                        _LOGGER.warning(
+                        _LOGGER.debug(
                             "[turn=%s] received response tool_call=%s server_content=%s go_away=%s session_resumption_update=%s",
                             turn_id,
                             bool(response.tool_call),
@@ -622,7 +679,7 @@ class GeminiLiveSTT(SpeechToTextEntity):
                             function_calls = response.tool_call.function_calls or []
                             function_responses = []
 
-                            _LOGGER.warning(
+                            _LOGGER.debug(
                                 "[turn=%s] tool_call count=%d",
                                 turn_id,
                                 len(function_calls),
@@ -638,23 +695,14 @@ class GeminiLiveSTT(SpeechToTextEntity):
                                     tool_args,
                                 )
 
-                                if llm_api is not None:
-                                    try:
-                                        tool_input = llm.ToolInput(
-                                            tool_name=tool_name,
-                                            tool_args=tool_args,
-                                        )
-                                        tool_result = await llm_api.async_call_tool(
-                                            tool_input
-                                        )
-                                    except Exception as err:  # noqa: BLE001
-                                        _LOGGER.error("Tool %s failed: %s", tool_name, err)
-                                        tool_result = {"error": str(err)}
-                                else:
-                                    tool_result = {"error": "HA LLM API not available"}
-                                tool_result = _validate_tool_results(tool_result)
+                                tool_result = await async_dispatch_tool_call(
+                                    llm_api,
+                                    tool_name,
+                                    tool_args,
+                                    profile.tool_call_timeout,
+                                )
 
-                                _LOGGER.warning(
+                                _LOGGER.debug(
                                     "[turn=%s] tool response prepared name=%s id=%s result_type=%s",
                                     turn_id,
                                     tool_name,
@@ -671,7 +719,7 @@ class GeminiLiveSTT(SpeechToTextEntity):
                                 )
 
                             if function_responses:
-                                _LOGGER.warning(
+                                _LOGGER.debug(
                                     "[turn=%s] sending %d tool response(s) to Gemini",
                                     turn_id,
                                     len(function_responses),
@@ -679,7 +727,7 @@ class GeminiLiveSTT(SpeechToTextEntity):
                                 await session.send_tool_response(
                                     function_responses=function_responses
                                 )
-                                _LOGGER.warning(
+                                _LOGGER.debug(
                                     "[turn=%s] sent %d tool response(s) back to Gemini",
                                     turn_id,
                                     len(function_responses),
@@ -693,7 +741,7 @@ class GeminiLiveSTT(SpeechToTextEntity):
 
                         if content.model_turn:
                             parts = content.model_turn.parts or []
-                            _LOGGER.warning(
+                            _LOGGER.debug(
                                 "[turn=%s] modelTurn parts=%d turnComplete=%s",
                                 turn_id,
                                 len(parts),
@@ -712,7 +760,7 @@ class GeminiLiveSTT(SpeechToTextEntity):
                                 if part.inline_data and part.inline_data.data:
                                     if not gemini_replied.is_set():
                                         gemini_replied.set()
-                                        _LOGGER.warning(
+                                        _LOGGER.debug(
                                             "[turn=%s] gemini_replied set on first inline audio chunk",
                                             turn_id,
                                         )
@@ -739,7 +787,7 @@ class GeminiLiveSTT(SpeechToTextEntity):
                             text_response_parts.append(transcription)
                             if response_text_stream is not None:
                                 response_text_stream.add_chunk(transcription)
-                            _LOGGER.warning(
+                            _LOGGER.debug(
                                 "[turn=%s] outputTranscription text len=%d text=%r",
                                 turn_id,
                                 len(transcription),
@@ -755,7 +803,7 @@ class GeminiLiveSTT(SpeechToTextEntity):
                             )
                             input_transcript_parts.append(transcription)
                             input_transcript_received.set()
-                            _LOGGER.warning(
+                            _LOGGER.debug(
                                 "[turn=%s] inputTranscription text len=%d text=%r",
                                 turn_id,
                                 len(transcription),
@@ -766,12 +814,12 @@ class GeminiLiveSTT(SpeechToTextEntity):
                             if not profile.turn_complete_is_final(
                                 received_audio=gemini_replied.is_set()
                             ):
-                                _LOGGER.warning(
+                                _LOGGER.debug(
                                     "[turn=%s] turnComplete before audio; keeping session open and waiting",
                                     turn_id,
                                 )
                                 continue
-                            _LOGGER.warning(
+                            _LOGGER.debug(
                                 "[turn=%s] turnComplete received; breaking receive loop (audio_chunks=%d text_parts=%d)",
                                 turn_id,
                                 audio_response_chunk_count,
@@ -779,11 +827,11 @@ class GeminiLiveSTT(SpeechToTextEntity):
                             )
                             break
                 except asyncio.CancelledError:
-                    _LOGGER.warning("[turn=%s] receive_responses cancelled", turn_id)
+                    _LOGGER.debug("[turn=%s] receive_responses cancelled", turn_id)
                     raise
                 except Exception as exc:  # noqa: BLE001
                     if _is_connection_closed_ok(exc):
-                        _LOGGER.warning(
+                        _LOGGER.debug(
                             "[turn=%s] Gemini Live websocket closed normally",
                             turn_id,
                         )
@@ -796,7 +844,7 @@ class GeminiLiveSTT(SpeechToTextEntity):
 
             send_task = asyncio.create_task(send_audio())
             receive_task = asyncio.create_task(receive_responses())
-            _LOGGER.warning("[turn=%s] created send and receive tasks", turn_id)
+            _LOGGER.debug("[turn=%s] created send and receive tasks", turn_id)
 
             async def publish_streaming_turn() -> None:
                 """Release the pipeline once Gemini starts producing audio."""
@@ -830,7 +878,7 @@ class GeminiLiveSTT(SpeechToTextEntity):
                     result_future.set_result(
                         SpeechResult(user_text, SpeechResultState.SUCCESS)
                     )
-                _LOGGER.warning(
+                _LOGGER.debug(
                     "[turn=%s] released streaming TTS after first audio; user_transcript=%r",
                     turn_id,
                     user_text[:80],
@@ -841,7 +889,7 @@ class GeminiLiveSTT(SpeechToTextEntity):
             async def _cancel_sender_on_reply() -> None:
                 await gemini_replied.wait()
                 if not send_task.done():
-                    _LOGGER.warning(
+                    _LOGGER.debug(
                         "[turn=%s] cancelling send task because Gemini started replying",
                         turn_id,
                     )
@@ -923,7 +971,7 @@ class GeminiLiveSTT(SpeechToTextEntity):
                 response_audio_stream.finish()
                 if response_text_stream is not None:
                     response_text_stream.finish()
-                _LOGGER.warning(
+                _LOGGER.debug(
                     "[turn=%s] session tasks complete send_done=%s receive_done=%s audio_sent=%s replied=%s",
                     turn_id,
                     send_task.done(),
@@ -937,7 +985,7 @@ class GeminiLiveSTT(SpeechToTextEntity):
         all_audio_24k_len = audio_response_bytes
 
         if first_audio.is_set():
-            _LOGGER.warning(
+            _LOGGER.debug(
                 "STT: Gemini audio ready: text=%d chars, raw_audio=%d bytes",
                 len(response_text),
                 all_audio_24k_len,
@@ -967,7 +1015,7 @@ class GeminiLiveSTT(SpeechToTextEntity):
                 )
             )
 
-        _LOGGER.warning(
+        _LOGGER.debug(
             "[turn=%s] STT returning SpeechResult transcript=%r response_chars=%d elapsed=%.3fs",
             turn_id,
             final_text[:80],
@@ -1067,7 +1115,7 @@ class GeminiLiveSTT(SpeechToTextEntity):
         )
         set_detailed_logging(bool(config.get(CONF_DETAILED_LOGGING, False)))
 
-        _LOGGER.warning(
+        _LOGGER.debug(
             "[turn=%s] STT start language=%s model=%s voice=%s detailed_logging=%s",
             turn_id,
             metadata.language or "en",
