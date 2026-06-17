@@ -36,6 +36,7 @@ from .stt import (
     _is_connection_closed_ok,
     _validate_tool_results,
 )
+from .profiles import LiveSettings, get_profile
 from .runtime import AudioStream, new_conversation_id
 from .utils import pcm_to_wav, resample_24k_to_16k
 
@@ -182,28 +183,20 @@ class GeminiLiveConversationAgent(conversation.ConversationEntity):
         session_manager = entry_data[GEMINI_SESSION_MANAGER_KEY]
         turn_store = entry_data[GEMINI_TURN_STORE_KEY]
 
-        live_config: dict[str, Any] = {
-            "response_modalities": ["AUDIO"],
-            "speech_config": {
-                "voice_config": {
-                    "prebuilt_voice_config": {"voice_name": voice}
-                }
-            },
-            "system_instruction": {"parts": [{"text": system_instruction}]},
-            "input_audio_transcription": {},
-            "output_audio_transcription": {},
-            "realtime_input_config": {
-                "turn_coverage": "TURN_INCLUDES_ONLY_ACTIVITY"
-            },
-        }
-        if gemini_tools:
-            live_config["tools"] = gemini_tools
+        profile = get_profile(model)
+        live_config = profile.build_live_config(
+            LiveSettings(
+                voice=voice,
+                system_instruction=system_instruction,
+                gemini_tools=gemini_tools,
+                transcribe_output=True,
+            )
+        )
 
         text_response_parts: list[str] = []
         audio_response_chunks: list[bytes] = []
         resampled_pcm_chunks: list[bytes] = []
         wav_data = b""
-        native_audio_model = "native-audio" in (model or "")
 
         _LOGGER.warning(
             "[turn=%s] conversation text path start model=%s voice=%s tools=%d text=%r",
@@ -292,7 +285,9 @@ class GeminiLiveConversationAgent(conversation.ConversationEntity):
                             text_response_parts.append(content.output_transcription.text)
 
                         if content.turn_complete:
-                            if native_audio_model and not audio_response_chunks:
+                            if not profile.turn_complete_is_final(
+                                received_audio=bool(audio_response_chunks)
+                            ):
                                 _LOGGER.warning(
                                     "[turn=%s] text path turnComplete before audio; waiting",
                                     turn_id,
