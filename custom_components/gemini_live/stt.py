@@ -423,6 +423,8 @@ class GeminiLiveSTT(SpeechToTextEntity):
                 system_instruction=system_instruction,
                 gemini_tools=gemini_tools,
                 transcribe_output=transcribe_gemini,
+                session_resumption=True,
+                context_compression=True,
             )
         )
 
@@ -581,16 +583,18 @@ class GeminiLiveSTT(SpeechToTextEntity):
                             bool(response.session_resumption_update),
                         )
                         if response.go_away:
+                            # The socket will close shortly. The next turn's
+                            # acquire() sees a closed session and reconnects,
+                            # resuming via the stored handle below.
                             _LOGGER.warning(
-                                "[turn=%s] Gemini go_away=%s",
+                                "[turn=%s] Gemini go_away (time_left=%s); will resume on reconnect",
                                 turn_id,
-                                response.go_away,
+                                getattr(response.go_away, "time_left", None),
                             )
-                        if response.session_resumption_update:
-                            _LOGGER.warning(
-                                "[turn=%s] Gemini session_resumption_update=%s",
-                                turn_id,
-                                response.session_resumption_update,
+                        update = response.session_resumption_update
+                        if update and update.resumable and update.new_handle:
+                            session_manager.store_resumption_handle(
+                                conversation_id, update.new_handle
                             )
 
                         if response.tool_call:
