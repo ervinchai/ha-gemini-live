@@ -264,6 +264,42 @@ def _validate_tool_results(value: Any) -> Any:
     return value
 
 
+async def async_dispatch_tool_call(
+    llm_api: llm.APIInstance | None,
+    tool_name: str,
+    tool_args: dict[str, Any],
+    timeout: float | None,
+) -> Any:
+    """Run one HA Assist (or HA-registered MCP) tool and return a JSON result.
+
+    ``timeout`` bounds the wait for models that block the Live receive loop
+    while a tool runs (see ModelProfile.tool_call_timeout). External tools
+    reached through Home Assistant's MCP client — e.g. an n8n workflow — should
+    ack fast and defer slow work; this guard keeps one slow or hung tool from
+    stalling the whole turn. Failures and timeouts are returned to Gemini as an
+    error payload rather than raised.
+    """
+    if llm_api is None:
+        return {"error": "HA LLM API not available"}
+    tool_input = llm.ToolInput(tool_name=tool_name, tool_args=tool_args)
+    try:
+        call = llm_api.async_call_tool(tool_input)
+        result = (
+            await call
+            if timeout is None
+            else await asyncio.wait_for(call, timeout)
+        )
+    except (asyncio.TimeoutError, TimeoutError):
+        _LOGGER.warning(
+            "Tool %s did not return within %ss; continuing the turn", tool_name, timeout
+        )
+        result = {"error": f"Tool {tool_name} timed out after {timeout}s"}
+    except Exception as err:  # noqa: BLE001
+        _LOGGER.error("Tool %s failed: %s", tool_name, err)
+        result = {"error": str(err)}
+    return _validate_tool_results(result)
+
+
 # ---------------------------------------------------------------------------
 # PCM diagnostics helper
 # ---------------------------------------------------------------------------
@@ -659,21 +695,12 @@ class GeminiLiveSTT(SpeechToTextEntity):
                                     tool_args,
                                 )
 
-                                if llm_api is not None:
-                                    try:
-                                        tool_input = llm.ToolInput(
-                                            tool_name=tool_name,
-                                            tool_args=tool_args,
-                                        )
-                                        tool_result = await llm_api.async_call_tool(
-                                            tool_input
-                                        )
-                                    except Exception as err:  # noqa: BLE001
-                                        _LOGGER.error("Tool %s failed: %s", tool_name, err)
-                                        tool_result = {"error": str(err)}
-                                else:
-                                    tool_result = {"error": "HA LLM API not available"}
-                                tool_result = _validate_tool_results(tool_result)
+                                tool_result = await async_dispatch_tool_call(
+                                    llm_api,
+                                    tool_name,
+                                    tool_args,
+                                    profile.tool_call_timeout,
+                                )
 
                                 _LOGGER.debug(
                                     "[turn=%s] tool response prepared name=%s id=%s result_type=%s",

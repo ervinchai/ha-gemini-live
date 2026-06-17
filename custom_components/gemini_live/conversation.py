@@ -39,7 +39,7 @@ from .stt import (
     _escape_decode,
     _format_tools_for_gemini_live,
     _is_connection_closed_ok,
-    _validate_tool_results,
+    async_dispatch_tool_call,
     async_get_client,
 )
 from .profiles import LiveSettings, get_profile
@@ -253,20 +253,12 @@ class GeminiLiveConversationAgent(conversation.ConversationEntity):
                                     tool_args,
                                 )
 
-                                if llm_api is not None:
-                                    try:
-                                        tool_result = await llm_api.async_call_tool(
-                                            llm.ToolInput(
-                                                tool_name=tool_name,
-                                                tool_args=tool_args,
-                                            )
-                                        )
-                                    except Exception as err:  # noqa: BLE001
-                                        _LOGGER.error("Tool %s failed: %s", tool_name, err)
-                                        tool_result = {"error": str(err)}
-                                else:
-                                    tool_result = {"error": "HA LLM API not available"}
-                                tool_result = _validate_tool_results(tool_result)
+                                tool_result = await async_dispatch_tool_call(
+                                    llm_api,
+                                    tool_name,
+                                    tool_args,
+                                    profile.tool_call_timeout,
+                                )
 
                                 function_responses.append(
                                     types.FunctionResponse(
