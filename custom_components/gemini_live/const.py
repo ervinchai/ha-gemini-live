@@ -9,6 +9,7 @@ CONF_SYSTEM_INSTRUCTION = "system_instruction"
 CONF_DETAILED_LOGGING = "detailed_logging"
 CONF_TRANSCRIBE_GEMINI = "transcribe_gemini"
 CONF_ENCOURAGE_WEB_SEARCH = "encourage_web_search"
+CONF_NATIVE_GOOGLE_SEARCH = "native_google_search"
 CONF_SILENCE_DURATION_MS = "silence_duration_ms"
 CONF_THINKING_LEVEL = "thinking_level"
 
@@ -16,6 +17,7 @@ DEFAULT_MODEL = "gemini-3.1-flash-live-preview"
 DEFAULT_VOICE = "Puck"
 DEFAULT_TRANSCRIBE_GEMINI = False
 DEFAULT_ENCOURAGE_WEB_SEARCH = False
+DEFAULT_NATIVE_GOOGLE_SEARCH = False
 # End-of-speech silence before Gemini treats the turn as finished. Lower is
 # snappier; too low clips slow speakers. The Live API default is ~800 ms.
 DEFAULT_SILENCE_DURATION_MS = 600

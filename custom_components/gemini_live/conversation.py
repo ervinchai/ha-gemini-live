@@ -19,11 +19,13 @@ from .const import (
     CONF_API_KEY,
     CONF_ENCOURAGE_WEB_SEARCH,
     CONF_MODEL,
+    CONF_NATIVE_GOOGLE_SEARCH,
     CONF_SILENCE_DURATION_MS,
     CONF_SYSTEM_INSTRUCTION,
     CONF_THINKING_LEVEL,
     CONF_VOICE,
     DEFAULT_SILENCE_DURATION_MS,
+    DEFAULT_NATIVE_GOOGLE_SEARCH,
     DEFAULT_SYSTEM_INSTRUCTION,
     DEFAULT_THINKING_LEVEL,
     DEFAULT_ENCOURAGE_WEB_SEARCH,
@@ -203,6 +205,11 @@ class GeminiLiveConversationAgent(conversation.ConversationEntity):
                 ),
                 thinking_level=config.get(
                     CONF_THINKING_LEVEL, DEFAULT_THINKING_LEVEL
+                ),
+                native_google_search=bool(
+                    config.get(
+                        CONF_NATIVE_GOOGLE_SEARCH, DEFAULT_NATIVE_GOOGLE_SEARCH
+                    )
                 ),
             )
         )

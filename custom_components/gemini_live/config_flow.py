@@ -11,10 +11,12 @@ from .const import (
     CONF_DETAILED_LOGGING,
     CONF_ENCOURAGE_WEB_SEARCH,
     CONF_MODEL,
+    CONF_NATIVE_GOOGLE_SEARCH,
     CONF_SILENCE_DURATION_MS,
     CONF_THINKING_LEVEL,
     CONF_TRANSCRIBE_GEMINI,
     CONF_VOICE,
+    DEFAULT_NATIVE_GOOGLE_SEARCH,
     DEFAULT_SILENCE_DURATION_MS,
     DEFAULT_THINKING_LEVEL,
     DEFAULT_TRANSCRIBE_GEMINI,
@@ -99,6 +101,10 @@ class GeminiLiveConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         CONF_THINKING_LEVEL,
                         default=DEFAULT_THINKING_LEVEL,
                     ): THINKING_LEVEL_SELECTOR,
+                    vol.Optional(
+                        CONF_NATIVE_GOOGLE_SEARCH,
+                        default=DEFAULT_NATIVE_GOOGLE_SEARCH,
+                    ): selector.BooleanSelector(),
                 }
             ),
             errors=errors,
@@ -135,6 +141,9 @@ class GeminiLiveConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         current_thinking_level = config.get(
             CONF_THINKING_LEVEL, DEFAULT_THINKING_LEVEL
         )
+        current_native_google_search = config.get(
+            CONF_NATIVE_GOOGLE_SEARCH, DEFAULT_NATIVE_GOOGLE_SEARCH
+        )
 
         return self.async_show_form(
             step_id="reconfigure",
@@ -164,6 +173,10 @@ class GeminiLiveConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         CONF_THINKING_LEVEL,
                         default=current_thinking_level,
                     ): THINKING_LEVEL_SELECTOR,
+                    vol.Optional(
+                        CONF_NATIVE_GOOGLE_SEARCH,
+                        default=current_native_google_search,
+                    ): selector.BooleanSelector(),
                 }
             ),
             errors=errors,
@@ -206,6 +219,9 @@ class GeminiLiveOptionsFlowHandler(config_entries.OptionsFlow):
         current_thinking_level = config.get(
             CONF_THINKING_LEVEL, DEFAULT_THINKING_LEVEL
         )
+        current_native_google_search = config.get(
+            CONF_NATIVE_GOOGLE_SEARCH, DEFAULT_NATIVE_GOOGLE_SEARCH
+        )
 
         schema_dict = {
             vol.Required(CONF_API_KEY, default=current_api_key): str,
@@ -232,6 +248,10 @@ class GeminiLiveOptionsFlowHandler(config_entries.OptionsFlow):
                 CONF_THINKING_LEVEL,
                 default=current_thinking_level,
             ): THINKING_LEVEL_SELECTOR,
+            vol.Optional(
+                CONF_NATIVE_GOOGLE_SEARCH,
+                default=current_native_google_search,
+            ): selector.BooleanSelector(),
         }
 
         return self.async_show_form(
