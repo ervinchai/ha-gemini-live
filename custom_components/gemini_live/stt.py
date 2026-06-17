@@ -45,6 +45,7 @@ from .const import (
     GEMINI_TURN_STORE_KEY,
     SUPPORTED_LANGUAGES,
 )
+from .profiles import LiveSettings, get_profile
 from .runtime import (
     AudioStream,
     PipelineTurn,
@@ -415,23 +416,15 @@ class GeminiLiveSTT(SpeechToTextEntity):
             len(function_declarations),
             len(system_instruction),
         )
-        live_config: dict[str, Any] = {
-            "response_modalities": ["AUDIO"],
-            "speech_config": {
-                "voice_config": {
-                    "prebuilt_voice_config": {"voice_name": voice}
-                }
-            },
-            "system_instruction": {"parts": [{"text": system_instruction}]},
-            "input_audio_transcription": {},
-            "realtime_input_config": {
-                "turn_coverage": "TURN_INCLUDES_ONLY_ACTIVITY"
-            },
-        }
-        if transcribe_gemini:
-            live_config["output_audio_transcription"] = {}
-        if gemini_tools:
-            live_config["tools"] = gemini_tools
+        profile = get_profile(model)
+        live_config = profile.build_live_config(
+            LiveSettings(
+                voice=voice,
+                system_instruction=system_instruction,
+                gemini_tools=gemini_tools,
+                transcribe_output=transcribe_gemini,
+            )
+        )
 
         _LOGGER.warning(
             "[turn=%s] live config prepared model=%s response_modalities=%s voice=%s has_tools=%s input_transcription=%s output_transcription=%s realtime_turn_coverage=%s",
@@ -445,12 +438,10 @@ class GeminiLiveSTT(SpeechToTextEntity):
             live_config["realtime_input_config"].get("turn_coverage"),
         )
 
-        native_audio_model = "native-audio" in (model or "")
         _LOGGER.warning(
-            "[turn=%s] setup model=%s native_audio_model=%s response_modalities=%s tools=%d",
+            "[turn=%s] setup model=%s response_modalities=%s tools=%d",
             turn_id,
             model,
-            native_audio_model,
             live_config["response_modalities"],
             len(function_declarations),
         )
@@ -475,7 +466,7 @@ class GeminiLiveSTT(SpeechToTextEntity):
         async with session_manager.acquire(
             conversation_id,
             client,
-            model,
+            profile,
             live_config,
         ) as session:
             _LOGGER.warning(
@@ -748,7 +739,9 @@ class GeminiLiveSTT(SpeechToTextEntity):
                             )
 
                         if content.turn_complete:
-                            if native_audio_model and not gemini_replied.is_set():
+                            if not profile.turn_complete_is_final(
+                                received_audio=gemini_replied.is_set()
+                            ):
                                 _LOGGER.warning(
                                     "[turn=%s] turnComplete before audio; keeping session open and waiting",
                                     turn_id,

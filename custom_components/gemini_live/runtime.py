@@ -16,6 +16,8 @@ from weakref import WeakValueDictionary
 
 from homeassistant.core import HomeAssistant
 
+from .profiles import ModelProfile
+
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -206,10 +208,11 @@ class LiveSessionManager:
         self,
         conversation_id: str,
         client: Any,
-        model: str,
+        profile: ModelProfile,
         config: dict[str, Any],
     ) -> AsyncIterator[Any]:
         """Yield the conversation's open session, reconnecting when necessary."""
+        model = profile.model_id
         signature = self._config_signature(model, config)
         conversation_lock = self._lock_for(conversation_id)
         async with conversation_lock:
