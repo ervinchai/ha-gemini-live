@@ -190,6 +190,8 @@ class GeminiLiveConversationAgent(conversation.ConversationEntity):
                 system_instruction=system_instruction,
                 gemini_tools=gemini_tools,
                 transcribe_output=True,
+                session_resumption=True,
+                context_compression=True,
             )
         )
 
