@@ -33,9 +33,15 @@ from .const import (
     CONF_DETAILED_LOGGING,
     CONF_ENCOURAGE_WEB_SEARCH,
     CONF_MODEL,
+    CONF_NATIVE_GOOGLE_SEARCH,
+    CONF_SILENCE_DURATION_MS,
     CONF_SYSTEM_INSTRUCTION,
+    CONF_THINKING_LEVEL,
     CONF_TRANSCRIBE_GEMINI,
     CONF_VOICE,
+    DEFAULT_NATIVE_GOOGLE_SEARCH,
+    DEFAULT_SILENCE_DURATION_MS,
+    DEFAULT_THINKING_LEVEL,
     DEFAULT_TRANSCRIBE_GEMINI,
     DEFAULT_ENCOURAGE_WEB_SEARCH,
     DEFAULT_SYSTEM_INSTRUCTION,
@@ -416,6 +422,7 @@ class GeminiLiveSTT(SpeechToTextEntity):
             len(function_declarations),
             len(system_instruction),
         )
+        entry_config = {**self.entry.data, **self.entry.options}
         profile = get_profile(model)
         live_config = profile.build_live_config(
             LiveSettings(
@@ -425,6 +432,19 @@ class GeminiLiveSTT(SpeechToTextEntity):
                 transcribe_output=transcribe_gemini,
                 session_resumption=True,
                 context_compression=True,
+                silence_duration_ms=int(
+                    entry_config.get(
+                        CONF_SILENCE_DURATION_MS, DEFAULT_SILENCE_DURATION_MS
+                    )
+                ),
+                thinking_level=entry_config.get(
+                    CONF_THINKING_LEVEL, DEFAULT_THINKING_LEVEL
+                ),
+                native_google_search=bool(
+                    entry_config.get(
+                        CONF_NATIVE_GOOGLE_SEARCH, DEFAULT_NATIVE_GOOGLE_SEARCH
+                    )
+                ),
             )
         )
 
