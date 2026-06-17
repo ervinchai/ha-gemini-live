@@ -24,9 +24,24 @@ from .const import (
     CONF_SYSTEM_INSTRUCTION,
     DEFAULT_MODEL,
     DEFAULT_VOICE,
-    AVAILABLE_MODELS,
     AVAILABLE_VOICES_INFO,
     THINKING_LEVELS,
+)
+from .profiles import suggested_models
+
+
+# The model field is registry-driven but accepts a custom value, so a newly
+# released or renamed Live model can be entered without an integration update;
+# get_profile() falls back to the default capabilities for an unknown id.
+MODEL_SELECTOR = selector.SelectSelector(
+    selector.SelectSelectorConfig(
+        options=[
+            selector.SelectOptionDict(value=model_id, label=label)
+            for model_id, label in suggested_models()
+        ],
+        mode=selector.SelectSelectorMode.DROPDOWN,
+        custom_value=True,
+    )
 )
 
 
@@ -81,7 +96,7 @@ class GeminiLiveConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             data_schema=vol.Schema(
                 {
                     vol.Required(CONF_API_KEY): str,
-                    vol.Required(CONF_MODEL, default=DEFAULT_MODEL): vol.In(AVAILABLE_MODELS),
+                    vol.Required(CONF_MODEL, default=DEFAULT_MODEL): MODEL_SELECTOR,
                     vol.Required(CONF_VOICE, default=DEFAULT_VOICE): VOICE_SELECTOR,
                     vol.Optional(CONF_SYSTEM_INSTRUCTION): str,
                     vol.Optional(CONF_DETAILED_LOGGING, default=False): selector.BooleanSelector(),
@@ -150,7 +165,7 @@ class GeminiLiveConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             data_schema=vol.Schema(
                 {
                     vol.Required(CONF_API_KEY, default=current_api_key): str,
-                    vol.Required(CONF_MODEL, default=current_model): vol.In(AVAILABLE_MODELS),
+                    vol.Required(CONF_MODEL, default=current_model): MODEL_SELECTOR,
                     vol.Required(CONF_VOICE, default=current_voice): VOICE_SELECTOR,
                     vol.Optional(
                         CONF_SYSTEM_INSTRUCTION,
@@ -225,7 +240,7 @@ class GeminiLiveOptionsFlowHandler(config_entries.OptionsFlow):
 
         schema_dict = {
             vol.Required(CONF_API_KEY, default=current_api_key): str,
-            vol.Required(CONF_MODEL, default=current_model): vol.In(AVAILABLE_MODELS),
+            vol.Required(CONF_MODEL, default=current_model): MODEL_SELECTOR,
             vol.Required(CONF_VOICE, default=current_voice): VOICE_SELECTOR,
             vol.Optional(
                 CONF_SYSTEM_INSTRUCTION,

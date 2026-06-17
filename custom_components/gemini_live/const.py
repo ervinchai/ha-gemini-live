@@ -34,10 +34,10 @@ DEFAULT_SYSTEM_INSTRUCTION = (
     "Avoid formatting like bullet points, lists, bolding, or markdown in your speech."
 )
 
-AVAILABLE_MODELS = [
-    "gemini-3.1-flash-live-preview",
-    "gemini-2.5-flash-native-audio-preview-12-2025",
-]
+# The set of suggested Live models now lives in the profile registry
+# (profiles.suggested_models); the config-flow model field is registry-driven
+# and accepts a custom value, so a new model id can be entered without an
+# integration update.
 
 # Languages supported by Gemini native audio models.
 # Source: https://ai.google.dev/gemini-api/docs/speech-generation#supported-languages
