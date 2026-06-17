@@ -16,6 +16,7 @@ from homeassistant.helpers.intent import IntentResponse
 
 from .const import (
     CONF_API_KEY,
+    CONF_CONTINUE_FOLLOWUPS,
     CONF_ENCOURAGE_WEB_SEARCH,
     CONF_MODEL,
     CONF_NATIVE_GOOGLE_SEARCH,
@@ -23,6 +24,7 @@ from .const import (
     CONF_SYSTEM_INSTRUCTION,
     CONF_THINKING_LEVEL,
     CONF_VOICE,
+    DEFAULT_CONTINUE_FOLLOWUPS,
     DEFAULT_SILENCE_DURATION_MS,
     DEFAULT_NATIVE_GOOGLE_SEARCH,
     DEFAULT_SYSTEM_INSTRUCTION,
@@ -418,10 +420,20 @@ class GeminiLiveConversationAgent(conversation.ConversationEntity):
 
         self._fire_conversation_entry(user_transcript, assistant_text)
 
+        # A Live model is conversational by nature, so keep the mic open after
+        # every reply. Ending is left to the model (it acknowledges briefly,
+        # without a follow-up question, when the user is done) and the
+        # satellite's own no-speech timeout when the user goes quiet.
+        config = {**self.entry.data, **self.entry.options}
+        continue_conversation = bool(
+            config.get(CONF_CONTINUE_FOLLOWUPS, DEFAULT_CONTINUE_FOLLOWUPS)
+        )
+
         intent_response = IntentResponse(language=language)
         intent_response.async_set_speech(assistant_text)
 
         return conversation.ConversationResult(
             response=intent_response,
+            continue_conversation=continue_conversation,
             conversation_id=conversation_id,
         )

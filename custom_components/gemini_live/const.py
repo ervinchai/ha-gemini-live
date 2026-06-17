@@ -9,6 +9,7 @@ CONF_SYSTEM_INSTRUCTION = "system_instruction"
 CONF_DETAILED_LOGGING = "detailed_logging"
 CONF_TRANSCRIBE_GEMINI = "transcribe_gemini"
 CONF_ENCOURAGE_WEB_SEARCH = "encourage_web_search"
+CONF_CONTINUE_FOLLOWUPS = "continue_followups"
 CONF_NATIVE_GOOGLE_SEARCH = "native_google_search"
 CONF_SILENCE_DURATION_MS = "silence_duration_ms"
 CONF_THINKING_LEVEL = "thinking_level"
@@ -18,6 +19,11 @@ DEFAULT_VOICE = "Puck"
 DEFAULT_TRANSCRIBE_GEMINI = False
 DEFAULT_ENCOURAGE_WEB_SEARCH = False
 DEFAULT_NATIVE_GOOGLE_SEARCH = False
+# Keep a Live conversation open: after each reply the mic reopens (no wake word)
+# so the user can just keep talking. Ending is left to the model (it
+# acknowledges briefly when the user is done) and the satellite's own no-speech
+# timeout when the user falls silent.
+DEFAULT_CONTINUE_FOLLOWUPS = True
 # End-of-speech silence before Gemini treats the turn as finished. Lower is
 # snappier; too low clips slow speakers. The Live API default is ~800 ms.
 DEFAULT_SILENCE_DURATION_MS = 600
@@ -31,7 +37,11 @@ DEFAULT_SYSTEM_INSTRUCTION = (
     "Use the available tools to control devices, check states, run scripts, and query sensors. "
     "Always call the appropriate tool when the user asks to control something or queries a device state. "
     "Keep responses short, friendly, and natural for voice synthesis. "
-    "Avoid formatting like bullet points, lists, bolding, or markdown in your speech."
+    "Avoid formatting like bullet points, lists, bolding, or markdown in your speech. "
+    "The microphone stays open between turns. When the user clearly wants to stop "
+    "(for example 'stop', 'cancel', 'never mind', 'that's all', or 'thanks'), reply "
+    "with a brief acknowledgement such as 'Okay.' and do not ask a follow-up "
+    "question, so the conversation can end."
 )
 
 # The set of suggested Live models now lives in the profile registry
