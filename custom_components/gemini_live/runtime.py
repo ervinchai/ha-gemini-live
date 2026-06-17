@@ -202,6 +202,15 @@ class LiveSessionManager:
             WeakValueDictionary()
         )
         self._cleanup_registered: set[str] = set()
+        # Latest session-resumption handle reported by Gemini per conversation.
+        # Used to transparently resume after an idle disconnect or GoAway
+        # instead of starting a cold session that has lost all context.
+        self._resumption_handles: dict[str, str] = {}
+
+    def store_resumption_handle(self, conversation_id: str, handle: str) -> None:
+        """Remember the latest resumption handle for a conversation."""
+        if handle:
+            self._resumption_handles[conversation_id] = handle
 
     @asynccontextmanager
     async def acquire(
@@ -213,17 +222,26 @@ class LiveSessionManager:
     ) -> AsyncIterator[Any]:
         """Yield the conversation's open session, reconnecting when necessary."""
         model = profile.model_id
+        resumable = profile.capabilities.supports_session_resumption
         signature = self._config_signature(model, config)
         conversation_lock = self._lock_for(conversation_id)
         async with conversation_lock:
             connection = self._connections.get(conversation_id)
-            if connection and (
-                connection.config_signature != signature
-                or not self._is_open(connection.session)
-            ):
+            if connection and connection.config_signature != signature:
+                # The user changed settings; start a genuinely fresh session and
+                # discard the old resumption handle so we do not resume into a
+                # session created with different configuration.
+                self._resumption_handles.pop(conversation_id, None)
+                await self._async_close(conversation_id, connection)
+                connection = None
+            elif connection and not self._is_open(connection.session):
+                # The socket dropped (idle timeout or GoAway). Keep the handle so
+                # the reconnect below transparently resumes the conversation.
                 await self._async_close(conversation_id, connection)
                 connection = None
             if connection is None:
+                if resumable:
+                    config = self._with_resumption_handle(conversation_id, config)
                 context_manager = client.aio.live.connect(model=model, config=config)
                 session = await context_manager.__aenter__()
                 connection = _LiveConnection(
@@ -272,9 +290,30 @@ class LiveSessionManager:
     async def async_close(self, conversation_id: str) -> None:
         """Close one conversation's Live connection."""
         async with self._lock_for(conversation_id):
+            # The conversation is over; the resumption handle is no longer useful.
+            self._resumption_handles.pop(conversation_id, None)
             connection = self._connections.get(conversation_id)
             if connection is not None:
                 await self._async_close(conversation_id, connection)
+
+    def _with_resumption_handle(
+        self,
+        conversation_id: str,
+        config: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Return config with the stored resumption handle applied, if any.
+
+        The handle is deliberately excluded from the config signature so that
+        resuming an existing conversation does not look like a configuration
+        change and force an unnecessary reconnect.
+        """
+        handle = self._resumption_handles.get(conversation_id)
+        if not handle or not isinstance(config.get("session_resumption"), dict):
+            return config
+        return {
+            **config,
+            "session_resumption": {**config["session_resumption"], "handle": handle},
+        }
 
     def _lock_for(self, conversation_id: str) -> asyncio.Lock:
         """Return the serialization lock for a conversation."""
