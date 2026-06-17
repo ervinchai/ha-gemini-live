@@ -8,6 +8,7 @@ from homeassistant.helpers import selector
 from .const import (
     DOMAIN,
     CONF_API_KEY,
+    CONF_CONTINUE_FOLLOWUPS,
     CONF_DETAILED_LOGGING,
     CONF_ENCOURAGE_WEB_SEARCH,
     CONF_MODEL,
@@ -16,6 +17,7 @@ from .const import (
     CONF_THINKING_LEVEL,
     CONF_TRANSCRIBE_GEMINI,
     CONF_VOICE,
+    DEFAULT_CONTINUE_FOLLOWUPS,
     DEFAULT_NATIVE_GOOGLE_SEARCH,
     DEFAULT_SILENCE_DURATION_MS,
     DEFAULT_THINKING_LEVEL,
@@ -120,6 +122,10 @@ class GeminiLiveConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         CONF_NATIVE_GOOGLE_SEARCH,
                         default=DEFAULT_NATIVE_GOOGLE_SEARCH,
                     ): selector.BooleanSelector(),
+                    vol.Optional(
+                        CONF_CONTINUE_FOLLOWUPS,
+                        default=DEFAULT_CONTINUE_FOLLOWUPS,
+                    ): selector.BooleanSelector(),
                 }
             ),
             errors=errors,
@@ -159,6 +165,9 @@ class GeminiLiveConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         current_native_google_search = config.get(
             CONF_NATIVE_GOOGLE_SEARCH, DEFAULT_NATIVE_GOOGLE_SEARCH
         )
+        current_continue_followups = config.get(
+            CONF_CONTINUE_FOLLOWUPS, DEFAULT_CONTINUE_FOLLOWUPS
+        )
 
         return self.async_show_form(
             step_id="reconfigure",
@@ -191,6 +200,10 @@ class GeminiLiveConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     vol.Optional(
                         CONF_NATIVE_GOOGLE_SEARCH,
                         default=current_native_google_search,
+                    ): selector.BooleanSelector(),
+                    vol.Optional(
+                        CONF_CONTINUE_FOLLOWUPS,
+                        default=current_continue_followups,
                     ): selector.BooleanSelector(),
                 }
             ),
@@ -237,6 +250,9 @@ class GeminiLiveOptionsFlowHandler(config_entries.OptionsFlow):
         current_native_google_search = config.get(
             CONF_NATIVE_GOOGLE_SEARCH, DEFAULT_NATIVE_GOOGLE_SEARCH
         )
+        current_continue_followups = config.get(
+            CONF_CONTINUE_FOLLOWUPS, DEFAULT_CONTINUE_FOLLOWUPS
+        )
 
         schema_dict = {
             vol.Required(CONF_API_KEY, default=current_api_key): str,
@@ -266,6 +282,10 @@ class GeminiLiveOptionsFlowHandler(config_entries.OptionsFlow):
             vol.Optional(
                 CONF_NATIVE_GOOGLE_SEARCH,
                 default=current_native_google_search,
+            ): selector.BooleanSelector(),
+            vol.Optional(
+                CONF_CONTINUE_FOLLOWUPS,
+                default=current_continue_followups,
             ): selector.BooleanSelector(),
         }
 
