@@ -1,8 +1,8 @@
 # Gemini Live for Home Assistant
 
-[![HACS validation](https://img.shields.io/github/actions/workflow/status/matt123p/ha-gemini-live/validate.yml?branch=main&label=HACS%20validation)](https://github.com/matt123p/ha-gemini-live/actions/workflows/validate.yml)
-[![GitHub release](https://img.shields.io/github/v/release/matt123p/ha-gemini-live)](https://github.com/matt123p/ha-gemini-live/releases)
-[![License](https://img.shields.io/github/license/matt123p/ha-gemini-live)](LICENSE)
+[![HACS validation](https://img.shields.io/github/actions/workflow/status/ervinchai/ha-gemini-live/validate.yml?branch=main&label=HACS%20validation)](https://github.com/ervinchai/ha-gemini-live/actions/workflows/validate.yml)
+[![GitHub release](https://img.shields.io/github/v/release/ervinchai/ha-gemini-live)](https://github.com/ervinchai/ha-gemini-live/releases)
+[![License](https://img.shields.io/github/license/ervinchai/ha-gemini-live)](LICENSE)
 
 Gemini Live is a custom Home Assistant integration that connects the Home Assistant voice
 pipeline directly to Google's Gemini Live API. 
@@ -22,6 +22,15 @@ Gemini's reply to text is optional and will slow down the time it takes to reply
 > This is an independent community integration. It is not the official Home
 > Assistant Google Gemini integration and is not affiliated with Google, Google
 > DeepMind, or the Open Home Foundation.
+
+> [!NOTE]
+> This is a **separately maintained** integration by
+> [@ervinchai](https://github.com/ervinchai), built on top of the original
+> [matt123p/ha-gemini-live](https://github.com/matt123p/ha-gemini-live).
+> Version 2.0.0 re-architects it around a model-agnostic adapter and adds a
+> free-text model field, session resumption and context compression, VAD and
+> thinking latency controls, native Google Search, and continuous conversation.
+> See the [changelog](CHANGELOG.md) for the full list.
 
 
 ## How It Works
@@ -68,7 +77,7 @@ Gemini Live can be used side-by-side with the official integration.
 | Typed conversation | Supported (but not recommended - use the offical Gemini integration instead) | Supported |
 | Standalone TTS | Not supported - Use the offical Gemini integration instead | Supported with `tts.speak`, including voice options |
 | Image/PDF analysis | Not supported - Use the offical Gemini integration instead | Supported by the `generate_content` action |
-| Google Search option | Supported through the official integration's documented search workaround | Supported through the official integration's documented search workaround |
+| Google Search option | Native, combined with Assist tools in one Live session (Gemini 3.x) | Supported through the official integration's documented search workaround |
 | Model stability | Uses preview Live models | Offers the models and settings supported by Home Assistant Core |
 | Support channel | Community repository issues | Home Assistant Core issue tracker and documentation |
 
@@ -119,12 +128,12 @@ Add this repository as a custom repository in HACS:
 
 1. Open HACS in Home Assistant.
 2. Select the three-dot menu, then **Custom repositories**.
-3. Enter `https://github.com/matt123p/ha-gemini-live`.
+3. Enter `https://github.com/ervinchai/ha-gemini-live`.
 4. Select **Integration** as the category and add the repository.
 5. Find **Gemini Live** in HACS and select **Download**.
 6. Restart Home Assistant when HACS asks you to.
 
-[![Open your Home Assistant instance and open this repository in HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=matt123p&repository=ha-gemini-live&category=integration)
+[![Open your Home Assistant instance and open this repository in HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=ervinchai&repository=ha-gemini-live&category=integration)
 
 ### Manual
 
@@ -162,9 +171,13 @@ The final path must contain:
 | Option | Description |
 | --- | --- |
 | API key | Google Gemini API key used for every Live connection. |
-| Live model | Preview Live model used for voice and typed conversations. |
+| Live model | Live model used for voice and typed conversations. A registry-driven list with suggestions, but you can type any model id. |
 | Voice | Prebuilt voice used for Gemini's native audio responses. |
 | System instruction | Optional personality and behavior instruction. Home Assistant's Assist API prompt is appended automatically. |
+| End-of-speech silence | How long Gemini waits after you stop speaking before replying. Lower responds faster; the Live default is ~800 ms. |
+| Thinking level | How much Gemini reasons before answering (MINIMAL/LOW/MEDIUM/HIGH). Lower gives the fastest time-to-first-audio. Used only by models that support it. |
+| Native Google Search | Let Gemini search the web via its built-in Google Search tool alongside your Assist tools, with no extra agent hop. Used only by models that can combine search with functions. |
+| Continuous conversation | Keep the microphone open after each reply so you can keep talking without the wake word. End by asking the assistant to stop or by falling silent. |
 | Detailed logging | Enables verbose logs from this custom integration. These logs can contain transcripts, model details, and tool-call information. |
 | Transcribe Gemini | Streams Gemini's spoken-response transcript into Home Assistant while native audio is still arriving. Disabled by default for the lowest playback latency. |
 | Encourage web search | Encourages Gemini to use an exposed search-like Assist tool for current, recent, time-sensitive, or explicitly requested online information. Disabled by default. |
@@ -217,34 +230,21 @@ Tool execution is performed by Home Assistant through its Assist LLM API. The
 integration sends tool definitions and tool results to Gemini so it can decide
 what to call and describe the outcome.
 
-## Enable Google Search
+## Web Search
 
-Gemini Live can use the workaround from the official Home Assistant
-[Google Gemini integration's Google Search documentation](https://www.home-assistant.io/integrations/google_generative_ai_conversation/#google-search).
-The official integration is required because it provides a separate
-search-enabled conversation agent for the workaround to call.
+Gemini Live supports web search two ways:
 
-This extra agent is necessary because, as the official documentation explains,
-the Gemini API does not allow the
-[Google Search tool](https://ai.google.dev/gemini-api/docs/google-search) and
-function-calling tools such as Home Assistant's Assist tools in the same
-request. The workaround exposes a script that sends search queries to the
-separate official Gemini agent and returns its answer.
-
-### Set Up The Search Agent
-
-Following the
-[official Google Search workaround steps](https://www.home-assistant.io/integrations/google_generative_ai_conversation/#google-search) and check it is working with the offical Gemini integration.
-
-Once exposed, Gemini Live can discover and call `Assist: Search Google` through
-Home Assistant's Assist tools.
-
-### Turn on "Encourage web search"
-Gemini decides whether to call exposed tools. To make it more likely to use the
-search script for current information, enable **Encourage web search** in the
-Gemini Live integration options. This adds search-routing instructions to
-Gemini's system prompt and strengthens the exposed search tool description. It
-does not install, expose, or configure a search tool by itself.
+- **Native Google Search (recommended).** Enable **Native Google Search** in the
+  integration options. On Gemini 3.x the built-in
+  [Google Search tool](https://ai.google.dev/gemini-api/docs/google-search) runs
+  in the same Live session as your Assist tools, with no separate search agent.
+  (Earlier models could not combine Google Search with function calling in one
+  request; 3.x can, which removes the need for the old official-integration
+  workaround.)
+- **Exposed Assist search tool.** To route searches through an exposed Assist
+  tool instead, enable **Encourage web search** to add search-routing guidance to
+  Gemini's system prompt and strengthen the exposed tool's description. This does
+  not create a search tool by itself.
 
 ## Supported Audio And Languages
 
