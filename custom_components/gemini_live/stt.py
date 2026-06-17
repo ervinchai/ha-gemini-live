@@ -35,9 +35,11 @@ from .const import (
     CONF_MODEL,
     CONF_SILENCE_DURATION_MS,
     CONF_SYSTEM_INSTRUCTION,
+    CONF_THINKING_LEVEL,
     CONF_TRANSCRIBE_GEMINI,
     CONF_VOICE,
     DEFAULT_SILENCE_DURATION_MS,
+    DEFAULT_THINKING_LEVEL,
     DEFAULT_TRANSCRIBE_GEMINI,
     DEFAULT_ENCOURAGE_WEB_SEARCH,
     DEFAULT_SYSTEM_INSTRUCTION,
@@ -432,6 +434,9 @@ class GeminiLiveSTT(SpeechToTextEntity):
                     entry_config.get(
                         CONF_SILENCE_DURATION_MS, DEFAULT_SILENCE_DURATION_MS
                     )
+                ),
+                thinking_level=entry_config.get(
+                    CONF_THINKING_LEVEL, DEFAULT_THINKING_LEVEL
                 ),
             )
         )

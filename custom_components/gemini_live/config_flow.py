@@ -12,9 +12,11 @@ from .const import (
     CONF_ENCOURAGE_WEB_SEARCH,
     CONF_MODEL,
     CONF_SILENCE_DURATION_MS,
+    CONF_THINKING_LEVEL,
     CONF_TRANSCRIBE_GEMINI,
     CONF_VOICE,
     DEFAULT_SILENCE_DURATION_MS,
+    DEFAULT_THINKING_LEVEL,
     DEFAULT_TRANSCRIBE_GEMINI,
     DEFAULT_ENCOURAGE_WEB_SEARCH,
     CONF_SYSTEM_INSTRUCTION,
@@ -22,6 +24,7 @@ from .const import (
     DEFAULT_VOICE,
     AVAILABLE_MODELS,
     AVAILABLE_VOICES_INFO,
+    THINKING_LEVELS,
 )
 
 
@@ -32,6 +35,13 @@ SILENCE_DURATION_SELECTOR = selector.NumberSelector(
         step=50,
         unit_of_measurement="ms",
         mode=selector.NumberSelectorMode.SLIDER,
+    )
+)
+
+THINKING_LEVEL_SELECTOR = selector.SelectSelector(
+    selector.SelectSelectorConfig(
+        options=THINKING_LEVELS,
+        mode=selector.SelectSelectorMode.DROPDOWN,
     )
 )
 
@@ -85,6 +95,10 @@ class GeminiLiveConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         CONF_SILENCE_DURATION_MS,
                         default=DEFAULT_SILENCE_DURATION_MS,
                     ): SILENCE_DURATION_SELECTOR,
+                    vol.Optional(
+                        CONF_THINKING_LEVEL,
+                        default=DEFAULT_THINKING_LEVEL,
+                    ): THINKING_LEVEL_SELECTOR,
                 }
             ),
             errors=errors,
@@ -118,6 +132,9 @@ class GeminiLiveConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         current_silence_duration_ms = config.get(
             CONF_SILENCE_DURATION_MS, DEFAULT_SILENCE_DURATION_MS
         )
+        current_thinking_level = config.get(
+            CONF_THINKING_LEVEL, DEFAULT_THINKING_LEVEL
+        )
 
         return self.async_show_form(
             step_id="reconfigure",
@@ -143,6 +160,10 @@ class GeminiLiveConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         CONF_SILENCE_DURATION_MS,
                         default=current_silence_duration_ms,
                     ): SILENCE_DURATION_SELECTOR,
+                    vol.Optional(
+                        CONF_THINKING_LEVEL,
+                        default=current_thinking_level,
+                    ): THINKING_LEVEL_SELECTOR,
                 }
             ),
             errors=errors,
@@ -182,6 +203,9 @@ class GeminiLiveOptionsFlowHandler(config_entries.OptionsFlow):
         current_silence_duration_ms = config.get(
             CONF_SILENCE_DURATION_MS, DEFAULT_SILENCE_DURATION_MS
         )
+        current_thinking_level = config.get(
+            CONF_THINKING_LEVEL, DEFAULT_THINKING_LEVEL
+        )
 
         schema_dict = {
             vol.Required(CONF_API_KEY, default=current_api_key): str,
@@ -204,6 +228,10 @@ class GeminiLiveOptionsFlowHandler(config_entries.OptionsFlow):
                 CONF_SILENCE_DURATION_MS,
                 default=current_silence_duration_ms,
             ): SILENCE_DURATION_SELECTOR,
+            vol.Optional(
+                CONF_THINKING_LEVEL,
+                default=current_thinking_level,
+            ): THINKING_LEVEL_SELECTOR,
         }
 
         return self.async_show_form(

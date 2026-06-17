@@ -13,7 +13,8 @@
           "detailed_logging": "Enable detailed logging",
           "transcribe_gemini": "Transcribe Gemini",
           "encourage_web_search": "Encourage web search",
-          "silence_duration_ms": "End-of-speech silence (ms)"
+          "silence_duration_ms": "End-of-speech silence (ms)",
+          "thinking_level": "Thinking level"
         },
         "data_description": {
           "api_key": "Create an API key in Google AI Studio. Audio and text sent through this integration are processed by Google.",
@@ -23,7 +24,8 @@
           "detailed_logging": "Write verbose diagnostic information to the Home Assistant log. Enable only while troubleshooting.",
           "transcribe_gemini": "Stream a transcript of Gemini's spoken reply into Home Assistant. Disabling this gives the lowest reply-audio latency.",
           "encourage_web_search": "Tell Gemini to use an exposed search-like Assist tool for current, recent, time-sensitive, or explicitly requested online information.",
-          "silence_duration_ms": "How long Gemini waits after you stop speaking before replying. Lower responds faster but may cut off slow speakers; the Live default is about 800 ms."
+          "silence_duration_ms": "How long Gemini waits after you stop speaking before replying. Lower responds faster but may cut off slow speakers; the Live default is about 800 ms.",
+          "thinking_level": "How much Gemini reasons before answering. MINIMAL or LOW give the fastest time-to-first-audio; higher levels trade latency for better reasoning. Ignored by models without configurable thinking."
         }
       },
       "reconfigure": {
@@ -37,12 +39,14 @@
           "detailed_logging": "Enable detailed logging",
           "transcribe_gemini": "Transcribe Gemini",
           "encourage_web_search": "Encourage web search",
-          "silence_duration_ms": "End-of-speech silence (ms)"
+          "silence_duration_ms": "End-of-speech silence (ms)",
+          "thinking_level": "Thinking level"
         },
         "data_description": {
           "transcribe_gemini": "Stream a transcript of Gemini's spoken reply into Home Assistant. Disabling this gives the lowest reply-audio latency.",
           "encourage_web_search": "Tell Gemini to use an exposed search-like Assist tool for current, recent, time-sensitive, or explicitly requested online information.",
-          "silence_duration_ms": "How long Gemini waits after you stop speaking before replying. Lower responds faster but may cut off slow speakers; the Live default is about 800 ms."
+          "silence_duration_ms": "How long Gemini waits after you stop speaking before replying. Lower responds faster but may cut off slow speakers; the Live default is about 800 ms.",
+          "thinking_level": "How much Gemini reasons before answering. MINIMAL or LOW give the fastest time-to-first-audio; higher levels trade latency for better reasoning. Ignored by models without configurable thinking."
         }
       }
     }
@@ -60,12 +64,14 @@
           "detailed_logging": "Enable detailed logging",
           "transcribe_gemini": "Transcribe Gemini",
           "encourage_web_search": "Encourage web search",
-          "silence_duration_ms": "End-of-speech silence (ms)"
+          "silence_duration_ms": "End-of-speech silence (ms)",
+          "thinking_level": "Thinking level"
         },
         "data_description": {
           "transcribe_gemini": "Stream a transcript of Gemini's spoken reply into Home Assistant. Disabling this gives the lowest reply-audio latency.",
           "encourage_web_search": "Tell Gemini to use an exposed search-like Assist tool for current, recent, time-sensitive, or explicitly requested online information.",
-          "silence_duration_ms": "How long Gemini waits after you stop speaking before replying. Lower responds faster but may cut off slow speakers; the Live default is about 800 ms."
+          "silence_duration_ms": "How long Gemini waits after you stop speaking before replying. Lower responds faster but may cut off slow speakers; the Live default is about 800 ms.",
+          "thinking_level": "How much Gemini reasons before answering. MINIMAL or LOW give the fastest time-to-first-audio; higher levels trade latency for better reasoning. Ignored by models without configurable thinking."
         }
       }
     }

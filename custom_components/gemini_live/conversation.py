@@ -21,9 +21,11 @@ from .const import (
     CONF_MODEL,
     CONF_SILENCE_DURATION_MS,
     CONF_SYSTEM_INSTRUCTION,
+    CONF_THINKING_LEVEL,
     CONF_VOICE,
     DEFAULT_SILENCE_DURATION_MS,
     DEFAULT_SYSTEM_INSTRUCTION,
+    DEFAULT_THINKING_LEVEL,
     DEFAULT_ENCOURAGE_WEB_SEARCH,
     DOMAIN,
     GEMINI_LIVE_TTS_PLACEHOLDER,
@@ -198,6 +200,9 @@ class GeminiLiveConversationAgent(conversation.ConversationEntity):
                     config.get(
                         CONF_SILENCE_DURATION_MS, DEFAULT_SILENCE_DURATION_MS
                     )
+                ),
+                thinking_level=config.get(
+                    CONF_THINKING_LEVEL, DEFAULT_THINKING_LEVEL
                 ),
             )
         )

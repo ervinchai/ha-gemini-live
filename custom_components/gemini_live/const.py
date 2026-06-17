@@ -10,6 +10,7 @@ CONF_DETAILED_LOGGING = "detailed_logging"
 CONF_TRANSCRIBE_GEMINI = "transcribe_gemini"
 CONF_ENCOURAGE_WEB_SEARCH = "encourage_web_search"
 CONF_SILENCE_DURATION_MS = "silence_duration_ms"
+CONF_THINKING_LEVEL = "thinking_level"
 
 DEFAULT_MODEL = "gemini-3.1-flash-live-preview"
 DEFAULT_VOICE = "Puck"
@@ -18,6 +19,10 @@ DEFAULT_ENCOURAGE_WEB_SEARCH = False
 # End-of-speech silence before Gemini treats the turn as finished. Lower is
 # snappier; too low clips slow speakers. The Live API default is ~800 ms.
 DEFAULT_SILENCE_DURATION_MS = 600
+# Gemini 3.x thinking effort. "MINIMAL"/"LOW" give the fastest
+# time-to-first-audio; higher levels improve reasoning at the cost of latency.
+THINKING_LEVELS = ["MINIMAL", "LOW", "MEDIUM", "HIGH"]
+DEFAULT_THINKING_LEVEL = "LOW"
 GEMINI_LIVE_TTS_PLACEHOLDER = "-- gemini live --"
 DEFAULT_SYSTEM_INSTRUCTION = (
     "You are a helpful, concise voice assistant for the user's smart home, powered by Home Assistant. "
