@@ -6,7 +6,6 @@ import time
 from typing import Any
 from uuid import uuid4
 
-from google import genai
 from google.genai import types
 from homeassistant.components import conversation
 from homeassistant.config_entries import ConfigEntry
@@ -41,6 +40,7 @@ from .stt import (
     _format_tools_for_gemini_live,
     _is_connection_closed_ok,
     _validate_tool_results,
+    async_get_client,
 )
 from .profiles import LiveSettings, get_profile
 from .runtime import AudioStream, new_conversation_id
@@ -219,7 +219,7 @@ class GeminiLiveConversationAgent(conversation.ConversationEntity):
         resampled_pcm_chunks: list[bytes] = []
         wav_data = b""
 
-        _LOGGER.warning(
+        _LOGGER.debug(
             "[turn=%s] conversation text path start model=%s voice=%s tools=%d text=%r",
             turn_id,
             model,
@@ -228,9 +228,7 @@ class GeminiLiveConversationAgent(conversation.ConversationEntity):
             user_text[:120],
         )
 
-        client = await self.hass.async_add_executor_job(
-            lambda: genai.Client(api_key=api_key)
-        )
+        client = await async_get_client(self.hass, self.entry, api_key)
 
         try:
             async with session_manager.acquire(
@@ -309,7 +307,7 @@ class GeminiLiveConversationAgent(conversation.ConversationEntity):
                             if not profile.turn_complete_is_final(
                                 received_audio=bool(audio_response_chunks)
                             ):
-                                _LOGGER.warning(
+                                _LOGGER.debug(
                                     "[turn=%s] text path turnComplete before audio; waiting",
                                     turn_id,
                                 )
@@ -320,7 +318,7 @@ class GeminiLiveConversationAgent(conversation.ConversationEntity):
             return None
         except Exception as exc:  # noqa: BLE001
             if _is_connection_closed_ok(exc):
-                _LOGGER.warning(
+                _LOGGER.debug(
                     "[turn=%s] Gemini Live text path websocket closed normally",
                     turn_id,
                 )
@@ -339,7 +337,7 @@ class GeminiLiveConversationAgent(conversation.ConversationEntity):
 
         turn_store.add_audio(assistant_text, wav_data)
 
-        _LOGGER.warning(
+        _LOGGER.debug(
             "[turn=%s] conversation text path complete text_chars=%d audio_chunks=%d wav_bytes=%d elapsed=%.3fs",
             turn_id,
             len(assistant_text),
