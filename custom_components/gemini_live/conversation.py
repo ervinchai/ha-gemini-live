@@ -215,7 +215,7 @@ class GeminiLiveConversationAgent(conversation.ConversationEntity):
             async with session_manager.acquire(
                 conversation_id,
                 client,
-                model,
+                profile,
                 live_config,
             ) as session:
                 await session.send_realtime_input(text=user_text)

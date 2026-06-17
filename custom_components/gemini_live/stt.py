@@ -466,7 +466,7 @@ class GeminiLiveSTT(SpeechToTextEntity):
         async with session_manager.acquire(
             conversation_id,
             client,
-            model,
+            profile,
             live_config,
         ) as session:
             _LOGGER.warning(
